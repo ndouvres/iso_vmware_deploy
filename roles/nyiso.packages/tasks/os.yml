@@ -1,0 +1,98 @@
+---
+# Setup operating system packages tasks
+
+- block:
+      # This is a workaround to avoid a warning with debian in ansible 2.8
+
+    - block:
+        - name: Gather packages facts
+          shell: dpkg -l | awk '{ print $2 }'
+          changed_when: no
+          args:
+            warn: no
+          register: packages_debian_list_packages_result
+
+        - block:
+            - name: Updata packages cache
+              command: /usr/bin/apt-get update
+              args:
+                warn: no
+
+            - name: Setup aptitude and package manager python bindings
+              command: >-
+                /usr/bin/apt-get install --no-install-recommends \
+                aptitude python-apt -y -q
+              args:
+                warn: no
+          when: >-
+            "aptitude" not in packages_installed_debian
+            or "python-apt" not in packages_installed_debian
+          vars:
+            packages_installed_debian: >-
+              {{ packages_debian_list_packages_result.stdout_lines }}
+      when: ansible_facts.os_family | lower == "debian"
+
+    - name: Get operating system packages facts
+      package_facts:
+
+    - name: Setup operating system packages
+      package:
+        name: "{{ package.name }}"
+        state: "{{ package.state }}"
+      loop: "{{ packages_to_manage }}"
+      loop_control:
+        loop_var: package
+        label: >-
+          {{ package.name | default('') }} {{ package.state | default('') }}
+
+    - name: Setup fact with operating packages managed
+      set_fact:
+        packages_os_managed: >-
+          {{ packages_os_managed | default([]) + packages_to_manage }}
+  environment: "{{ proxy_client_environment }}"
+  vars:
+    pip_package: >-
+      {{ lookup("template", "pip_package.j2") | trim }}
+
+    python_setup_tools_package: python-setuptools
+
+    python_virtualenv_package: >-
+      {{ lookup("template", "virtualenv_package.j2") | trim }}
+
+    python_pip_packages_spec:
+      - name: "{{ pip_package }}"
+        state: present
+
+    python_setup_tools_packages_spec:
+      - name: "{{ python_setup_tools_package }}"
+        state: present
+
+    python_virtualenv_packages_spec:
+      - name: "{{ python_virtualenv_package }}"
+        state: present
+
+    python_extra_packages: >-
+      {{ (pip_package not in ansible_facts.packages.keys() | list)
+         | ternary(python_pip_packages_spec, [])
+         + (python_setup_tools_package
+            not in ansible_facts.packages.keys() | list)
+           | ternary(python_setup_tools_packages_spec, [])
+         + (python_virtualenv_package
+            not in ansible_facts.packages.keys() | list)
+           | ternary(python_virtualenv_packages_spec, []) }}
+
+    packages_to_manage: >-
+      {{ lookup('template', 'packages.yml.j2') | from_yaml
+         + (packages_python is not none)
+            | ternary(python_extra_packages, []) }}
+
+    packages_already_managed: "{{ packages_os_managed | default([]) }}"
+
+    packages_already_present: "{{ ansible_facts.packages.keys() | list }}"
+
+    packages_spec: "{{ packages_os }}"
+
+    packages_spec_hostvars: "{{ packages_os_hostvars | default([]) }}"
+  tags:
+    - role::packages
+    - role::packages::os

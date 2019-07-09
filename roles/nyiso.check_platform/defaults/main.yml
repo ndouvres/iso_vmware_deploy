@@ -1,0 +1,16 @@
+---
+# Role default lower priority variables
+
+# Dictionary with the supported distributions. The format is:
+#
+# {
+#   <distribution1>: <minimum version>
+#   <distribution2>: <minimum version>
+#   <distributionN>: <minimum version>
+# }
+
+check_platform_distributions: {}
+
+# List of strings with the variable names that must be defined
+
+check_plaform_variables: []

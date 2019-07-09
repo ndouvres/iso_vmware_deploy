@@ -1,0 +1,9 @@
+---
+# Role tasks
+
+- name: Setup fact with values loaded from host variables
+  set_fact:
+    "{{ select_hostvars_query.fact_name }}": >-
+      {{ lookup('template', 'hostvars.yml.j2') | from_yaml }}
+  tags:
+    - role::select_hostvars

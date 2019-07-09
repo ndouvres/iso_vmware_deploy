@@ -1,0 +1,56 @@
+---
+# Role tasks
+
+- block:
+    - name: Gather facts
+      setup:
+      when: ansible_facts.keys() | list | length == 0
+
+    - name: Generate undefined value place holder
+      set_fact:
+        check_platform_undefined_place_holder: >-
+          {{ "__check_platform_undefined_place_holder__"
+             + (99999999999999999999999999999999999999999999999999
+                | random
+                | to_uuid) }}
+
+    - block:
+        - name: Assert distribution is supported
+          assert:
+            that: >-
+              distribution
+              in check_platform_distributions.keys()
+                 | list
+                 | map("lower")
+                 | list
+            msg: "{{ distribution }} distribution is not supported"
+
+        - name: Assert distribution version is supported
+          assert:
+            that: >-
+              ansible_facts.distribution_version
+              is version(check_platform_distributions[distribution], ">=")
+            msg: >-
+              {{ distribution }} distribution
+              version {{ ansible_facts.distribution_version }} is not supported
+      when: check_platform_distributions.keys() | list | length > 0
+      vars:
+        distribution: "{{ ansible_facts.distribution | lower }}"
+
+    - name: Assert required variables are defined
+      assert:
+        that:
+          - value != check_platform_undefined_place_holder
+          - value is not none
+        msg: "required variable {{ check_platform_variable }} is missing"
+      loop: "{{ check_plaform_variables }}"
+      loop_control:
+        loop_var: check_platform_variable
+        label: "{{ check_platform_variable }}"
+      vars:
+        value: >-
+          {{ lookup('vars',
+                    check_platform_variable,
+                    default=check_platform_undefined_place_holder) }}
+  tags:
+    - role::check_platform
